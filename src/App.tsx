@@ -83,53 +83,101 @@ export default function App() {
     }
     requestAnimationFrame(raf);
 
-    // 1. Initial State: Text is already visible
+    // 1. Target Elements
     const chars = assembledTextRef.current?.querySelectorAll('.char');
+    const video = videoRef.current;
     
-    if (chars && videoRef.current) {
-      const video = videoRef.current;
-
-      // Ensure video metadata is loaded so we know the duration
-      video.addEventListener('loadedmetadata', () => {
-        const tl = gsap.timeline({
-          scrollTrigger: {
-            trigger: heroRef.current,
-            start: "top top",
-            end: "bottom top",
-            scrub: true,
-            pin: true,
-          }
-        });
-
-        // Sync Video Time (Scrubbing)
-        tl.to(video, {
-          currentTime: video.duration || 5, // Scrub through the video duration
-          ease: "none"
-        }, 0);
-
-        // Disassemble (Shatter) Text in sync with the video assembly (ironic contrast or following)
-        // Here we shatter the "APEX FITNESS" as the dumbbell in background assembles
-        tl.to(chars, {
+    if (chars && video) {
+      const initAnimations = () => {
+        // --- STAGE 1: Appearance on Page Load (Assemble) ---
+        // First, hide all chars randomly
+        gsap.set(chars, {
           x: () => Math.random() * 2000 - 1000,
           y: () => Math.random() * 2000 - 1000,
           z: () => Math.random() * 1000,
           rotation: () => Math.random() * 720 - 360,
           opacity: 0,
-          filter: "blur(20px)",
-          ease: "power1.inOut"
-        }, 0);
+          filter: "blur(20px)"
+        });
 
-        // Fade out other content
+        // Entrance Timeline
+        const entranceTl = gsap.timeline({
+          onComplete: () => {
+            // --- STAGE 2 & 3: Disappearance on Scroll (Shatter) ---
+            // Only create the ScrollTrigger AFTER the entrance finishes 
+            // for the cleanest "Assembled First" experience
+            const scrollTl = gsap.timeline({
+              scrollTrigger: {
+                trigger: heroRef.current,
+                start: "top top",
+                end: "bottom top",
+                scrub: 1.5,
+                pin: true,
+                anticipatePin: 1,
+              }
+            });
+
+            // Sync Video Time (Scrubbing)
+            scrollTl.to(video, {
+              currentTime: video.duration || 5,
+              ease: "none"
+            }, 0);
+
+            // Shatter Text
+            scrollTl.to(chars, {
+              x: () => Math.random() * 2000 - 1000,
+              y: () => Math.random() * 2000 - 1000,
+              z: () => Math.random() * 1000,
+              rotation: () => Math.random() * 720 - 360,
+              opacity: 0,
+              filter: "blur(20px)",
+              ease: "power2.inOut"
+            }, 0);
+
+            // Fade out Hero Elements (Metadata and Buttons)
+            if (heroContentRef.current) {
+              const otherElements = heroContentRef.current.querySelectorAll('p, div, span:not(.char)');
+              scrollTl.to(otherElements, {
+                opacity: 0,
+                y: -100,
+                filter: "blur(10px)",
+                ease: "power1.in"
+              }, 0);
+            }
+          }
+        });
+
+        // The actual Entrance Assembly
+        entranceTl.to(chars, {
+          x: 0,
+          y: 0,
+          z: 0,
+          rotation: 0,
+          opacity: 1,
+          filter: "blur(0px)",
+          duration: 2,
+          stagger: {
+            amount: 0.8,
+            from: "random"
+          },
+          ease: "power4.out"
+        });
+
+        // Ensure buttons and tagline start visible after a short delay
         if (heroContentRef.current) {
           const otherElements = heroContentRef.current.querySelectorAll('p, div, span:not(.char)');
-          tl.to(otherElements, {
-            opacity: 0,
-            y: -50,
-            filter: "blur(5px)",
-            ease: "power2.in"
-          }, 0);
+          gsap.fromTo(otherElements, 
+            { opacity: 0, y: 30 },
+            { opacity: 1, y: 0, duration: 1.5, delay: 1, ease: "power3.out" }
+          );
         }
-      });
+      };
+
+      if (video.readyState >= 1) {
+        initAnimations();
+      } else {
+        video.addEventListener('loadedmetadata', initAnimations, { once: true });
+      }
     }
 
     // Video Parallax (keeping a subtle scale instead of Y since we are pinned now)
